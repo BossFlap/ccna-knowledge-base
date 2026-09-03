@@ -13,13 +13,18 @@ const state = {
   quizScores: JSON.parse(localStorage.getItem('ccna-scores') || '{}'),
   blueprint: JSON.parse(localStorage.getItem('ccna-blueprint') || '{}'),
   simHistory: JSON.parse(localStorage.getItem('ccna-sim-history') || '[]'),
-  suppressHash: false
+  suppressHash: false,
+  pendingHighlight: null,
+  lastQuery: '',
+  searchResults: [],
+  searchFilter: 'all'
 };
 
 const DOMAIN_ORDER = ['Network Fundamentals', 'Network Access', 'IP Connectivity', 'IP Services', 'Security Fundamentals', 'Automation & Programmability'];
 const DOMAIN_ICONS = { 'Network Fundamentals': '🔗', 'Network Access': '🏷️', 'IP Connectivity': '🛤️', 'IP Services': '📋', 'Security Fundamentals': '🛡️', 'Automation & Programmability': '🤖' };
 
 const TOOLS = [
+  { id: 'search', icon: '🔍', title: 'Volltextsuche', short: 'Volltextsuche', desc: 'Begriffe, Protokolle, Ports und Befehle über alle Themen, Flashcards, Quizfragen und das Cheatsheet suchen.' },
   { id: 'guide', icon: '📋', title: 'Prüfungs-Guide & Blueprint', short: 'Prüfungs-Guide', desc: 'Fakten zur Prüfung, offizieller Blueprint als Checkliste, Lernplan, Ressourcen, Glossar.' },
   { id: 'sim', icon: '🎓', title: 'Prüfungssimulation', short: 'Simulation', desc: 'Gemischte Fragen aus allen Domänen, nach Prüfungsgewichtung, mit Timer und Auswertung.' },
   { id: 'commands', icon: '⌨️', title: 'CLI-Cheatsheet', short: 'CLI-Cheatsheet', desc: 'Alle prüfungsrelevanten IOS-Befehle nach Aufgabe gruppiert, durchsuchbar.' }
@@ -63,6 +68,12 @@ function init() {
     route();
   });
   document.addEventListener('keydown', onKeyDown);
+  document.getElementById('sidebar-search').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.value.trim()) { doSearch(e.target.value); e.target.value = ''; onSearch({ target: e.target }); }
+  });
+  document.getElementById('content-area').addEventListener('scroll', onContentScroll);
+  buildSearchIndex();
+  initGlobalSearch();
   route();
 }
 
@@ -76,6 +87,7 @@ function route() {
   if (view === 'guide') return navigateTool('guide', true);
   if (view === 'sim') return navigateTool('sim', true);
   if (view === 'commands') return navigateTool('commands', true);
+  if (view === 'search') return renderSearch(decodeURIComponent(h.slice(7)), true);
   navigateHome(true);
 }
 
@@ -169,11 +181,12 @@ function navigateTool(tool, fromRoute) {
   state.currentView = tool;
   if (tool !== 'sim') state.simState = null;
   document.getElementById('sidebar').classList.remove('open');
-  if (!fromRoute) setHash(tool);
+  if (!fromRoute && tool !== 'search') setHash(tool);
   renderSidebar();
   if (tool === 'guide') renderGuide();
   else if (tool === 'sim') renderSim();
   else if (tool === 'commands') renderCommands();
+  else if (tool === 'search') renderSearch(state.lastQuery || '', true);
 }
 
 function setBreadcrumb(parts) {
@@ -241,6 +254,10 @@ function renderHome() {
       <div class="home-hero">
         <h2>CCNA 200-301 v1.1 — Wissensbase</h2>
         <p>Deine komplette Lernplattform für die CCNA-Prüfung: Theorie zu jedem Blueprint-Punkt, Quizze, Flashcards, Prüfungssimulation und CLI-Cheatsheet. Fortschritt wird lokal im Browser gespeichert.</p>
+        <div class="hero-search">
+          <input type="text" id="home-search" placeholder="🔍 Begriff, Protokoll, Port oder Befehl suchen …" autocomplete="off" onkeydown="if(event.key==='Enter'&&this.value.trim())doSearch(this.value)">
+          <button onclick="var v=document.getElementById('home-search').value; if(v.trim()) doSearch(v)">Suchen</button>
+        </div>
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-num">${s.doneTopics}/${s.totalTopics}</div><div class="stat-label">Themen gelesen</div></div>
           <div class="stat-card"><div class="stat-num">${s.quizzed}/${s.totalTopics}</div><div class="stat-label">Quizze absolviert</div></div>
@@ -338,6 +355,7 @@ function renderTopic(id) {
         ${bpItems.length ? `<div class="bp-refs">Blueprint: ${bpItems.map(i => `<span class="chip chip-link" title="${escapeAttr(i.text)}" onclick="navigateTool('guide');setTimeout(()=>scrollToBlueprint('${i.num}'),50)">${i.num} · ${VERB_LEVELS[i.verb].label}${i.isNew ? ' · NEU' : ''}</span>`).join('')}</div>` : ''}
       </div>
 
+      <div id="topic-toc"></div>
       ${topic.content}
 
       <div class="topic-actions">
@@ -351,6 +369,7 @@ function renderTopic(id) {
       </div>
     </div>
   `;
+  enhanceTopicView(id);
   scrollTop();
 }
 
@@ -596,7 +615,10 @@ function shuffleCards(topicId) {
 
 // ===== KEYBOARD =====
 function onKeyDown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); focusGlobalSearch(); return; }
   if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+  if (e.key === '/') { e.preventDefault(); focusGlobalSearch(); return; }
+  if (e.key === 'Escape' && state.currentView === 'topic') { clearHighlights(); return; }
   if (state.currentView === 'flash' && state.currentTopic) {
     if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); flipCard(state.currentTopic); }
     else if (e.key === 'ArrowRight') nextCard(state.currentTopic);

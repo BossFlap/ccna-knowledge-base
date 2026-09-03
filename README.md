@@ -13,6 +13,8 @@ Eine komplette, offline nutzbare Lernplattform (reines HTML/CSS/JS, keine Abhän
 - **Prüfungssimulation**: 20/40/60 Fragen, gezogen nach der offiziellen Domänengewichtung, mit Timer, kein Zurückblättern, Auswertung pro Domäne, Verlauf.
 - **CLI-Cheatsheet**: über 180 IOS-Befehle nach Aufgabe gruppiert, durchsuchbar, Klick kopiert den Befehl.
 - **Ressourcen & Glossar** aus dem offiziellen Cisco CCNA Certification Guide.
+- **Volltextsuche** über alle Inhalte (Theorie-Abschnitte, Befehle, Glossar, Blueprint, Flashcards, Quizfragen): Suchfeld in der Kopfzeile mit Live-Vorschlägen, `Strg+K` oder `/` von überall, Treffer werden im Thema hervorgehoben.
+- Inhaltsverzeichnis pro Thema, Kopier-Button auf jedem Code-Block, „Nach oben“-Button, Druckansicht.
 - Dark Mode, Hash-Routing (Themen sind verlinkbar), Fortschritt im `localStorage`.
 
 ## Starten
@@ -33,6 +35,7 @@ css/style.css         Styles (inkl. Dark Mode)
 js/data.js            Ursprüngliche 14 Kernthemen + Quiz + Flashcards + Registry-Helfer
 js/topics/01-06*.js   Erweiterungen pro Domäne (registerTopic / extendTopic)
 js/exam.js            Prüfungsfakten, Blueprint v1.1, Lernplan, Ressourcen, Glossar, CLI-Befehle
+js/search.js          Volltextsuche (Index, Ranking, Ergebnisseite, Topbar-Dropdown), Topic-Enhancements
 js/app.js             Rendering, Routing, Quiz, Flashcards, Guide, Simulation, Cheatsheet
 ```
 
