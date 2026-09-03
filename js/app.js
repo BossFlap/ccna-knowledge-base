@@ -29,7 +29,8 @@ const TOOLS = [
   { id: 'subnet', icon: '🧮', title: 'Subnetting-Trainer', short: 'Subnetting', desc: 'Zufällige Subnetting-Aufgaben mit Timer, Lösungsweg und Statistik — bis es unter 60 Sekunden sitzt.' },
   { id: 'guide', icon: '📋', title: 'Prüfungs-Guide & Blueprint', short: 'Prüfungs-Guide', desc: 'Fakten zur Prüfung, offizieller Blueprint als Checkliste, Lernplan, Ressourcen, Glossar.' },
   { id: 'sim', icon: '🎓', title: 'Prüfungssimulation', short: 'Simulation', desc: 'Gemischte Fragen aus allen Domänen, nach Prüfungsgewichtung, mit Timer und Auswertung.' },
-  { id: 'commands', icon: '⌨️', title: 'CLI-Cheatsheet', short: 'CLI-Cheatsheet', desc: 'Alle prüfungsrelevanten IOS-Befehle nach Aufgabe gruppiert, durchsuchbar.' }
+  { id: 'commands', icon: '⌨️', title: 'CLI-Cheatsheet', short: 'CLI-Cheatsheet', desc: 'Alle prüfungsrelevanten IOS-Befehle nach Aufgabe gruppiert, durchsuchbar.' },
+  { id: 'settings', icon: '⚙️', title: 'Einstellungen & Daten', short: 'Einstellungen', desc: 'Prüfungsdatum, Tagesziele, Lernstand exportieren/importieren (PC ↔ Handy), App installieren.' }
 ];
 
 // ===== HELPERS =====
@@ -81,6 +82,8 @@ function init() {
   buildSearchIndex();
   initGlobalSearch();
   route();
+  registerSW();
+  maybeShowOnboarding();
 }
 
 // ===== ROUTING (Hash) =====
@@ -96,6 +99,7 @@ function route() {
   if (view === 'search') return renderSearch(decodeURIComponent(h.slice(7)), true);
   if (view === 'review') return (id === 'session' && LEARN.review) ? renderReviewCard() : navigateTool('review', true);
   if (view === 'subnet') return navigateTool('subnet', true);
+  if (view === 'settings') return navigateTool('settings', true);
   if (view === 'errors') return (state.quizState && state.quizState.mode === 'errors') ? renderQuizQuestion() : navigateTool('review', true);
   navigateHome(true);
 }
@@ -127,14 +131,20 @@ function renderSidebar() {
       </div>`).join('')}
     </div>`;
 
+  const collapsedMap = loadJSON('ccna-sidebar', {});
   nav.innerHTML = tools + Object.entries(domains).map(([domain, topics]) => {
     const bp = blueprintDomain(domain);
+    const hasActive = state.currentView === 'topic' && topics.some(t => t.id === state.currentTopic);
+    const collapsed = !!collapsedMap[domain] && !hasActive;
+    const read = topics.filter(t => state.progress[t.id]).length;
     return `
-    <div class="domain-section">
-      <div class="domain-label">
-        ${domain}
+    <div class="domain-section ${collapsed ? 'collapsed' : ''}">
+      <div class="domain-label clickable" onclick="toggleDomain('${domain.replace(/'/g, "\\'")}')" title="${collapsed ? 'Ausklappen' : 'Einklappen'}">
+        <span class="dl-chev">▾</span>${domain}
+        <span class="dl-read">${read}/${topics.length}</span>
         <span class="domain-pct">${bp ? bp.weight + '%' : topics[0].domainPct}</span>
       </div>
+      <div class="domain-items">
       ${topics.map(t => {
         const done = state.progress[t.id];
         const score = state.quizScores[t.id];
@@ -148,6 +158,7 @@ function renderSidebar() {
           ${badge}
         </div>`;
       }).join('')}
+      </div>
     </div>`;
   }).join('');
   nav.scrollTop = keepScroll;
@@ -205,6 +216,7 @@ function navigateTool(tool, fromRoute) {
   else if (tool === 'search') renderSearch(state.lastQuery || '', true);
   else if (tool === 'review') { setBreadcrumb([{ label: 'Home', action: 'navigateHome()' }, { label: 'Tägliche Wiederholung' }]); updateTopbarActions('review'); renderReviewHome(); }
   else if (tool === 'subnet') { setBreadcrumb([{ label: 'Home', action: 'navigateHome()' }, { label: 'Subnetting-Trainer' }]); updateTopbarActions('subnet'); renderSubnet(); }
+  else if (tool === 'settings') { setBreadcrumb([{ label: 'Home', action: 'navigateHome()' }, { label: 'Einstellungen & Daten' }]); updateTopbarActions('settings'); renderSettings(); }
   if (tool !== 'search') rememberPosition((TOOLS.find(t => t.id === tool) || {}).title || tool);
 }
 
@@ -384,6 +396,7 @@ function renderTopic(id) {
         <button class="btn-secondary" id="mark-read-btn" onclick="toggleRead('${id}')">${state.progress[id] ? '↩ Als ungelesen markieren' : '✓ Als gelesen markieren'}</button>
         ${bpItems.length ? `<button class="btn-secondary" onclick="toggleBlueprintFromTopic('${id}')">${bpItems.every(i => state.blueprint[i.num]) ? '☑ Blueprint-Punkte als sicher markiert' : '☐ Blueprint-Punkte als sicher markieren'}</button>` : ''}
       </div>
+      <div id="related-topics"></div>
       <div class="topic-nav">
         ${prev ? `<button class="btn-secondary" onclick="navigateTopic('${prev.id}')">← ${prev.icon} ${prev.title}</button>` : '<span></span>'}
         ${next ? `<button class="btn-secondary" onclick="navigateTopic('${next.id}')">${next.icon} ${next.title} →</button>` : '<span></span>'}
@@ -1195,6 +1208,13 @@ function renderSimResult() {
 function clearSimHistory() {
   if (!confirm('Simulationsverlauf löschen?')) return;
   state.simHistory = []; save('ccna-sim-history', state.simHistory); renderSim();
+}
+
+function toggleDomain(domain) {
+  const m = loadJSON('ccna-sidebar', {});
+  if (m[domain]) delete m[domain]; else m[domain] = true;
+  saveJSON('ccna-sidebar', m);
+  renderSidebar();
 }
 
 // ===== MOBILE BOTTOM NAV =====

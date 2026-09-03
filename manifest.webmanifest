@@ -1,0 +1,17 @@
+{
+  "name": "CCNA 200-301 v1.1 Knowledge Base",
+  "short_name": "CCNA KB",
+  "description": "Lernplattform für die Cisco CCNA 200-301 v1.1: Theorie, Quiz, Flashcards mit Spaced Repetition, Subnetting-Trainer, Prüfungssimulation.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6f9",
+  "theme_color": "#2563eb",
+  "lang": "de",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

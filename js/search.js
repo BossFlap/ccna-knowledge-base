@@ -365,6 +365,10 @@ function enhanceTopicView(topicId) {
     pre.appendChild(b);
   });
 
+  // Glossar-Tooltips und verwandte Themen
+  addGlossaryTooltips(view);
+  renderRelatedTopics(topicId);
+
   // Suchtreffer hervorheben
   const ph = state.pendingHighlight; state.pendingHighlight = null;
   if (ph && ph.tokens && ph.tokens.length) {
@@ -386,7 +390,7 @@ function highlightTerms(root, tokens) {
     acceptNode(n) {
       if (!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
       const p = n.parentElement;
-      if (!p || p.closest('.toc, .copy-btn, .hl-bar, mark, .topic-header, .topic-actions, .topic-nav, button')) return NodeFilter.FILTER_REJECT;
+      if (!p || p.closest('.toc, .copy-btn, .hl-bar, mark, .topic-header, .topic-actions, .topic-nav, button, .related')) return NodeFilter.FILTER_REJECT;
       return re.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
     }
   });

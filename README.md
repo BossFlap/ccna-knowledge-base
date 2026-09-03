@@ -19,6 +19,9 @@ Eine komplette, offline nutzbare Lernplattform (reines HTML/CSS/JS, keine Abhän
 - **Subnetting-Trainer**: zufällige Aufgaben (Netz bestimmen, Maske ↔ CIDR, Wildcard, gleiches Subnetz?, Subnetz planen) mit Timer, Lösungsweg in Binärdarstellung und Statistik.
 - **Lesestatus**: ein Thema gilt erst als gelesen, wenn man eine textlängenabhängige Mindestzeit (30 s bis 2,5 Min) darin verbracht und bis zum Ende gescrollt hat, oder es manuell abhakt. Lesezeit-Schätzung im Header, Fortschrittsbalken unter der Kopfzeile.
 - **Responsiv**: zentrierter Inhalt auf grossen Bildschirmen, untere Navigationsleiste und Wischgesten bei Flashcards auf dem Handy.
+- **Export/Import des Lernstands** unter Einstellungen: als Datei oder über die Zwischenablage; Import wahlweise zusammenführen (höhere Scores, jüngere Kartenstände gewinnen) oder ersetzen. So wandert der Fortschritt zwischen PC und Handy.
+- **PWA**: installierbar (Manifest, Icons), offline nutzbar (Service Worker cached die App-Shell), Update-Hinweis bei neuer Version. Bei Deploys `?v=N` in `index.html` und `CACHE` in `sw.js` gemeinsam erhöhen.
+- **Glossar-Tooltips**: Abkürzungen im Text (DAI, CAPWAP, SAE …) erklären sich beim Darüberfahren oder Antippen. **Verwandte Themen** am Ende jedes Themas, einklappbare Domänen in der Sidebar, kurze Einführung beim ersten Besuch.
 - **Volltextsuche** über alle Inhalte (Theorie-Abschnitte, Befehle, Glossar, Blueprint, Flashcards, Quizfragen): Suchfeld in der Kopfzeile mit Live-Vorschlägen, `Strg+K` oder `/` von überall, Treffer werden im Thema hervorgehoben.
 - Inhaltsverzeichnis pro Thema, Kopier-Button auf jedem Code-Block, „Nach oben“-Button, Druckansicht.
 - Dark Mode, Hash-Routing (Themen sind verlinkbar), Fortschritt im `localStorage`.
@@ -44,6 +47,10 @@ js/exam.js            Prüfungsfakten, Blueprint v1.1, Lernplan, Ressourcen, Glo
 js/search.js          Volltextsuche (Index, Ranking, Ergebnisseite, Topbar-Dropdown), Topic-Enhancements
 js/learn.js           Spaced Repetition, Fehler-Pool, Aktivität/Streak, Prüfungsdatum, Dashboard
 js/subnet.js          Subnetting-Trainer
+js/enhance.js         Glossar-Tooltips (Abkürzungen), verwandte Themen
+js/settings.js        Einstellungen, Export/Import, PWA-Installation, Einführung
+sw.js                 Service Worker (Offline-Cache)
+manifest.webmanifest  PWA-Manifest, Icons unter icons/
 js/app.js             Rendering, Routing, Quiz, Flashcards, Guide, Simulation, Cheatsheet
 ```
 
