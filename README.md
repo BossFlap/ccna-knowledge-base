@@ -13,6 +13,11 @@ Eine komplette, offline nutzbare Lernplattform (reines HTML/CSS/JS, keine Abhän
 - **Prüfungssimulation**: 20/40/60 Fragen, gezogen nach der offiziellen Domänengewichtung, mit Timer, kein Zurückblättern, Auswertung pro Domäne, Verlauf.
 - **CLI-Cheatsheet**: über 180 IOS-Befehle nach Aufgabe gruppiert, durchsuchbar, Klick kopiert den Befehl.
 - **Ressourcen & Glossar** aus dem offiziellen Cisco CCNA Certification Guide.
+- **Tägliche Wiederholung (Spaced Repetition)**: jede Flashcard wird mit „Nicht gewusst / Schwer / Gewusst“ bewertet und wandert durch sechs Boxen (1 → 3 → 7 → 14 → 30 → 60 Tage). Fällige Karten werden auf dem Dashboard angezeigt, Sessions mischen fällige und neue Karten.
+- **Fehler-Pool**: falsch beantwortete Quiz- und Simulationsfragen landen automatisch im Pool; „Meine Fehler üben“ fragt sie ab, bis sie zweimal in Folge richtig waren.
+- **Dashboard**: Prüfungsdatum mit Countdown und empfohlenem Tempo, Streak mit 14-Tage-Verlauf, Tagesziel (Karten, Fragen, Thema), „Weiter lernen“ zur letzten Position.
+- **Subnetting-Trainer**: zufällige Aufgaben (Netz bestimmen, Maske ↔ CIDR, Wildcard, gleiches Subnetz?, Subnetz planen) mit Timer, Lösungsweg in Binärdarstellung und Statistik.
+- **Responsiv**: zentrierter Inhalt auf grossen Bildschirmen, untere Navigationsleiste und Wischgesten bei Flashcards auf dem Handy.
 - **Volltextsuche** über alle Inhalte (Theorie-Abschnitte, Befehle, Glossar, Blueprint, Flashcards, Quizfragen): Suchfeld in der Kopfzeile mit Live-Vorschlägen, `Strg+K` oder `/` von überall, Treffer werden im Thema hervorgehoben.
 - Inhaltsverzeichnis pro Thema, Kopier-Button auf jedem Code-Block, „Nach oben“-Button, Druckansicht.
 - Dark Mode, Hash-Routing (Themen sind verlinkbar), Fortschritt im `localStorage`.
@@ -36,6 +41,8 @@ js/data.js            Ursprüngliche 14 Kernthemen + Quiz + Flashcards + Registr
 js/topics/01-06*.js   Erweiterungen pro Domäne (registerTopic / extendTopic)
 js/exam.js            Prüfungsfakten, Blueprint v1.1, Lernplan, Ressourcen, Glossar, CLI-Befehle
 js/search.js          Volltextsuche (Index, Ranking, Ergebnisseite, Topbar-Dropdown), Topic-Enhancements
+js/learn.js           Spaced Repetition, Fehler-Pool, Aktivität/Streak, Prüfungsdatum, Dashboard
+js/subnet.js          Subnetting-Trainer
 js/app.js             Rendering, Routing, Quiz, Flashcards, Guide, Simulation, Cheatsheet
 ```
 

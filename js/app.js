@@ -25,6 +25,8 @@ const DOMAIN_ICONS = { 'Network Fundamentals': '🔗', 'Network Access': '🏷�
 
 const TOOLS = [
   { id: 'search', icon: '🔍', title: 'Volltextsuche', short: 'Volltextsuche', desc: 'Begriffe, Protokolle, Ports und Befehle über alle Themen, Flashcards, Quizfragen und das Cheatsheet suchen.' },
+  { id: 'review', icon: '🔁', title: 'Tägliche Wiederholung', short: 'Wiederholen', desc: 'Spaced Repetition für alle Flashcards und dein Fehler-Pool aus Quiz und Simulation.' },
+  { id: 'subnet', icon: '🧮', title: 'Subnetting-Trainer', short: 'Subnetting', desc: 'Zufällige Subnetting-Aufgaben mit Timer, Lösungsweg und Statistik — bis es unter 60 Sekunden sitzt.' },
   { id: 'guide', icon: '📋', title: 'Prüfungs-Guide & Blueprint', short: 'Prüfungs-Guide', desc: 'Fakten zur Prüfung, offizieller Blueprint als Checkliste, Lernplan, Ressourcen, Glossar.' },
   { id: 'sim', icon: '🎓', title: 'Prüfungssimulation', short: 'Simulation', desc: 'Gemischte Fragen aus allen Domänen, nach Prüfungsgewichtung, mit Timer und Auswertung.' },
   { id: 'commands', icon: '⌨️', title: 'CLI-Cheatsheet', short: 'CLI-Cheatsheet', desc: 'Alle prüfungsrelevanten IOS-Befehle nach Aufgabe gruppiert, durchsuchbar.' }
@@ -88,6 +90,9 @@ function route() {
   if (view === 'sim') return navigateTool('sim', true);
   if (view === 'commands') return navigateTool('commands', true);
   if (view === 'search') return renderSearch(decodeURIComponent(h.slice(7)), true);
+  if (view === 'review') return (id === 'session' && LEARN.review) ? renderReviewCard() : navigateTool('review', true);
+  if (view === 'subnet') return navigateTool('subnet', true);
+  if (view === 'errors') return (state.quizState && state.quizState.mode === 'errors') ? renderQuizQuestion() : navigateTool('review', true);
   navigateHome(true);
 }
 
@@ -113,6 +118,7 @@ function renderSidebar() {
       <div class="domain-label">Werkzeuge</div>
       ${TOOLS.map(t => `<div class="nav-item ${state.currentView === t.id ? 'active' : ''}" data-search="${escapeAttr(t.title + ' ' + t.desc)}" onclick="navigateTool('${t.id}')">
         <span class="topic-icon">${t.icon}</span><span class="topic-title">${t.short}</span>
+        ${t.id === 'review' && dueCards().length ? `<span class="topic-badge ok">${dueCards().length}</span>` : ''}
       </div>`).join('')}
     </div>`;
 
@@ -139,6 +145,7 @@ function renderSidebar() {
       }).join('')}
     </div>`;
   }).join('');
+  updateBottomNav();
 }
 
 function onSearch(e) {
@@ -165,6 +172,7 @@ function navigateTopic(id, fromRoute) {
   if (!fromRoute) setHash('topic/' + id);
   renderSidebar();
   renderTopic(id);
+  rememberPosition(topicById(id).icon + ' ' + topicById(id).title);
 }
 
 function navigateHome(fromRoute) {
@@ -187,6 +195,9 @@ function navigateTool(tool, fromRoute) {
   else if (tool === 'sim') renderSim();
   else if (tool === 'commands') renderCommands();
   else if (tool === 'search') renderSearch(state.lastQuery || '', true);
+  else if (tool === 'review') { setBreadcrumb([{ label: 'Home', action: 'navigateHome()' }, { label: 'Tägliche Wiederholung' }]); updateTopbarActions('review'); renderReviewHome(); }
+  else if (tool === 'subnet') { setBreadcrumb([{ label: 'Home', action: 'navigateHome()' }, { label: 'Subnetting-Trainer' }]); updateTopbarActions('subnet'); renderSubnet(); }
+  if (tool !== 'search') rememberPosition((TOOLS.find(t => t.id === tool) || {}).title || tool);
 }
 
 function setBreadcrumb(parts) {
@@ -267,6 +278,8 @@ function renderHome() {
         </div>
       </div>
 
+      ${renderDashboardCards()}
+
       <div class="section-title">🧭 Werkzeuge</div>
       <div class="tool-grid">
         ${TOOLS.map(t => `<div class="tool-card" onclick="navigateTool('${t.id}')">
@@ -320,6 +333,7 @@ function renderTopic(id) {
   const topic = topicById(id);
   if (!topic) return;
 
+  if (!state.progress[id]) logActivity('topics');
   state.progress[id] = true;
   save('ccna-progress', state.progress);
   renderSidebar();
@@ -404,6 +418,7 @@ function startQuiz(topicId, fromRoute) {
   ]);
   updateTopbarActions('quiz');
   renderSidebar();
+  rememberPosition(topic.icon + ' ' + topic.title + ' · Quiz');
   renderQuizQuestion();
 }
 
@@ -432,7 +447,7 @@ function renderQuizQuestion() {
       </div>
 
       <div class="question-card">
-        <div class="question-num">Frage ${qs.current + 1}</div>
+        <div class="question-num">Frage ${qs.current + 1}${qs.mode === 'errors' && q._topicId ? ` · <span class="chip chip-link" onclick="navigateTopic('${q._topicId}')">${topicById(q._topicId)?.icon || ''} ${topicById(q._topicId)?.title || ''}</span>` : ''}</div>
         <div class="question-text">${q.q}</div>
         <div class="options-list" id="options-list">
           ${q.options.map((opt, i) => `
@@ -444,7 +459,7 @@ function renderQuizQuestion() {
       </div>
 
       <div class="quiz-controls">
-        <button class="btn-secondary" onclick="navigateTopic('${qs.topicId}')">← Zurück zur Theorie</button>
+        ${qs.mode === 'errors' ? `<button class="btn-secondary" onclick="navigateTool('review')">← Abbrechen</button>` : `<button class="btn-secondary" onclick="navigateTopic('${qs.topicId}')">← Zurück zur Theorie</button>`}
         <button class="btn-primary" id="next-btn" onclick="nextQuestion()" disabled>
           ${qs.current < total - 1 ? 'Weiter →' : 'Ergebnis anzeigen'}
         </button>
@@ -464,6 +479,7 @@ function selectAnswer(index) {
   const isCorrect = index === q.correct;
   const letters = ['A', 'B', 'C', 'D'];
   qs.answers.push({ correct: isCorrect, q, chosen: index });
+  recordAnswer(q._topicId || qs.topicId, q, isCorrect);
 
   const opts = document.querySelectorAll('.option-btn');
   opts.forEach((btn, i) => {
@@ -501,8 +517,7 @@ function showQuizResult() {
   const total = qs.questions.length;
   const pct = Math.round((correct / total) * 100);
 
-  state.quizScores[qs.topicId] = pct;
-  save('ccna-scores', state.quizScores);
+  if (qs.mode !== 'errors') { state.quizScores[qs.topicId] = pct; save('ccna-scores', state.quizScores); }
   renderSidebar();
 
   const scoreClass = pct >= 80 ? 'great' : pct >= 60 ? 'ok' : 'poor';
@@ -522,8 +537,9 @@ function showQuizResult() {
           <div class="result-stat"><div class="rs-num">${total}</div><div class="rs-label">Gesamt</div></div>
         </div>
         <div class="result-actions">
-          <button class="btn-secondary" onclick="navigateTopic('${qs.topicId}')">📖 Theorie anzeigen</button>
-          <button class="btn-primary" onclick="startQuiz('${qs.topicId}')">🔁 Quiz wiederholen</button>
+          ${qs.mode === 'errors'
+            ? `<button class="btn-primary" onclick="startErrorQuiz()" ${errorPool().length ? '' : 'disabled'}>🔁 Fehler weiter üben (${errorPool().length})</button><button class="btn-secondary" onclick="navigateTool('review')">🔁 Wiederholen</button>`
+            : `<button class="btn-secondary" onclick="navigateTopic('${qs.topicId}')">📖 Theorie anzeigen</button><button class="btn-primary" onclick="startQuiz('${qs.topicId}')">🔁 Quiz wiederholen</button>`}
           <button class="btn-secondary" onclick="navigateHome()">🏠 Home</button>
         </div>
       </div>
@@ -576,7 +592,8 @@ function renderFlashcard(topicId) {
   document.getElementById('content-area').innerHTML = `
     <div id="flashcard-view" class="anim-in">
       <div class="section-title">🃏 Flashcards — ${topicById(topicId).title}</div>
-      <p class="kbd-hint" style="margin-bottom:16px;">Klicke auf die Karte oder drücke <kbd>Leertaste</kbd> zum Umdrehen · <kbd>←</kbd> <kbd>→</kbd> blättern · <kbd>S</kbd> mischen</p>
+      <p class="kbd-hint" style="margin-bottom:10px;"><kbd>Leertaste</kbd> umdrehen · <kbd>←</kbd> <kbd>→</kbd> blättern · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> bewerten · <kbd>S</kbd> mischen · auf dem Handy wischen</p>
+      <div class="review-topic">${cardStatusHtml(topicId, card)}</div>
 
       <div class="flashcard-container">
         <div class="flashcard ${state.flashcardFlipped ? 'flipped' : ''}" onclick="flipCard('${topicId}')">
@@ -585,7 +602,8 @@ function renderFlashcard(topicId) {
         </div>
       </div>
 
-      <div class="fc-nav" style="margin-top:24px;">
+      ${state.flashcardFlipped ? renderRatingButtons('rateTopicCard') : '<p class="kbd-hint" style="text-align:center;margin-top:16px">Karte umdrehen, dann bewerten — so landet sie in der täglichen Wiederholung.</p>'}
+      <div class="fc-nav" style="margin-top:16px;">
         <button class="btn-secondary" onclick="prevCard('${topicId}')" ${state.flashcardIndex === 0 ? 'disabled' : ''}>← Zurück</button>
         <span class="fc-counter">${state.flashcardIndex + 1} / ${total}</span>
         <button class="btn-primary" onclick="nextCard('${topicId}')" ${state.flashcardIndex === total - 1 ? 'disabled' : ''}>Weiter →</button>
@@ -597,6 +615,7 @@ function renderFlashcard(topicId) {
       </div>
     </div>
   `;
+  attachSwipe(document.querySelector('#flashcard-view .flashcard-container'), () => nextCard(topicId), () => prevCard(topicId));
 }
 
 function flipCard(topicId) { state.flashcardFlipped = !state.flashcardFlipped; renderFlashcard(topicId); }
@@ -624,11 +643,15 @@ function onKeyDown(e) {
     else if (e.key === 'ArrowRight') nextCard(state.currentTopic);
     else if (e.key === 'ArrowLeft') prevCard(state.currentTopic);
     else if (e.key.toLowerCase() === 's') shuffleCards(state.currentTopic);
+    else if (state.flashcardFlipped && ['1', '2', '3'].includes(e.key)) rateTopicCard(['again', 'hard', 'good'][+e.key - 1]);
   } else if (state.currentView === 'quiz' && state.quizState) {
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= 4) selectAnswer(n - 1);
     else if (['a', 'b', 'c', 'd'].includes(e.key.toLowerCase())) selectAnswer('abcd'.indexOf(e.key.toLowerCase()));
     else if (e.key === 'Enter') nextQuestion();
+  } else if (state.currentView === 'review' && LEARN.review) {
+    if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); reviewFlip(); }
+    else if (['1', '2', '3'].includes(e.key)) reviewRate(['again', 'hard', 'good'][+e.key - 1]);
   } else if (state.currentView === 'sim' && state.simState && state.simState.phase === 'run') {
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= 4) simSelect(n - 1);
@@ -1066,6 +1089,7 @@ function finishSim(timeout) {
   const correct = st.answers.filter(a => a.correct).length;
   const total = st.questions.length;
   st.pct = Math.round((correct / total) * 100);
+  st.answers.forEach(a => recordAnswer(a.q.topicId, a.q, a.correct));
 
   // Auswertung pro Domäne
   st.byDomain = BLUEPRINT.map(d => {
@@ -1137,6 +1161,14 @@ function renderSimResult() {
 function clearSimHistory() {
   if (!confirm('Simulationsverlauf löschen?')) return;
   state.simHistory = []; save('ccna-sim-history', state.simHistory); renderSim();
+}
+
+// ===== MOBILE BOTTOM NAV =====
+function updateBottomNav() {
+  const map = { home: 'home', topic: 'topic', quiz: 'topic', flash: 'topic', search: 'search', review: 'review', subnet: 'subnet' };
+  document.querySelectorAll('#bottom-nav button').forEach(b => b.classList.toggle('active', b.dataset.view === (map[state.currentView] || '')));
+  const badge = document.getElementById('bn-due');
+  if (badge) { const n = dueCards().length; badge.textContent = n; badge.style.display = n ? '' : 'none'; }
 }
 
 // ===== BOOT =====
