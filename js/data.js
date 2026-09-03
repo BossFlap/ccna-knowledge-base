@@ -195,7 +195,31 @@ Verkürzt:     2001:DB8::1        (führende Nullen weglassen, :: = aufeinanderf
           <tr><td>Multicast</td><td>FF00::/8</td><td>Gruppe von Empfängern (ersetzt Broadcast)</td></tr>
           <tr><td>Loopback</td><td>::1/128</td><td>Localhost (entspricht 127.0.0.1)</td></tr>
           <tr><td>Unspecified</td><td>::/128</td><td>Nicht zugewiesen (wie 0.0.0.0)</td></tr>
+          <tr><td>Anycast</td><td>(normale Unicast-Adresse)</td><td>Dieselbe Adresse auf mehreren Geräten — Paket geht zum <em>nächsten</em> (Routing-Metrik). Mit <code>ipv6 address ... anycast</code> konfiguriert.</td></tr>
+          <tr><td>Solicited-Node Multicast</td><td>FF02::1:FF00:0/104</td><td>Wird für NDP (Ersatz für ARP) genutzt — die letzten 24 Bit der Unicast-Adresse werden angehängt</td></tr>
         </table></div>
+        <h4>Wichtige Multicast-Gruppen</h4>
+        <ul>
+          <li><code>FF02::1</code> — alle Nodes im Link (entspricht Broadcast)</li>
+          <li><code>FF02::2</code> — alle Router im Link</li>
+          <li><code>FF02::5</code> / <code>FF02::6</code> — OSPFv3 (alle Router / DR-BDR)</li>
+        </ul>
+        <div class="callout callout-info"><strong>Kein Broadcast in IPv6</strong>IPv6 kennt keinen Broadcast. ARP wird durch <strong>NDP</strong> (Neighbor Discovery Protocol, ICMPv6) ersetzt: Neighbor Solicitation / Neighbor Advertisement (Adressauflösung) und Router Solicitation / Router Advertisement (Gateway &amp; Präfix-Info für SLAAC).</div>
+      </div>
+
+      <div class="content-section">
+        <h3>🧮 Modified EUI-64 — Schritt für Schritt</h3>
+        <p>Aus einer 48-Bit-MAC wird eine 64-Bit-Interface-ID:</p>
+        <pre><code>MAC-Adresse:       00:1A:2B:3C:4D:5E
+1. Teilen:         001A2B | 3C4D5E
+2. FFFE einfügen:  001A2B FFFE 3C4D5E
+3. 7. Bit kippen:  00 = 0000 0000 → 0000 0010 = 02
+Interface-ID:      021A:2BFF:FE3C:4D5E
+Adresse:           2001:DB8:1:1:021A:2BFF:FE3C:4D5E/64</code></pre>
+        <div class="callout callout-tip"><strong>Merkhilfe 7. Bit</strong>Erstes Byte in Binär schreiben, das 7. Bit von links (U/L-Bit) invertieren. 00→02, 02→00, 08→0A, 0C→0E, 10→12, 3C→3E.</div>
+        <pre><code>Router(config-if)# ipv6 address 2001:DB8:1:1::/64 eui-64
+Router(config-if)# ipv6 enable                       <span class="cli-comment"># nur Link-Local erzeugen</span>
+Router# show ipv6 interface gi0/0</code></pre>
       </div>
 
       <div class="content-section">
@@ -348,6 +372,66 @@ Switch(config-if)# spanning-tree bpduguard enable
 Switch(config)# spanning-tree portfast default
 Switch(config)# spanning-tree portfast bpduguard default</code></pre>
       </div>
+
+      <div class="content-section">
+        <h3>🧭 Rapid PVST+ — Port-Rollen &amp; Zustände</h3>
+        <p>Cisco-Switches nutzen standardmäßig <strong>PVST+</strong> (eine STP-Instanz pro VLAN). <strong>Rapid PVST+</strong> kombiniert RSTP (802.1w) mit dem Per-VLAN-Ansatz. Prüfungsrelevant sind vor allem die Port-Rollen und die reduzierten Zustände.</p>
+        <div class="table-wrap"><table>
+          <tr><th>Rolle</th><th>Beschreibung</th></tr>
+          <tr><td><strong>Root Port</strong></td><td>Bester Pfad eines Non-Root-Switches zur Root Bridge (niedrigste Root Path Cost)</td></tr>
+          <tr><td><strong>Designated Port</strong></td><td>Pro Segment genau ein Port, der Traffic Richtung Root weiterleitet (alle Ports der Root Bridge sind Designated)</td></tr>
+          <tr><td><strong>Alternate Port</strong></td><td>Backup zum Root Port (empfängt bessere BPDUs von einem anderen Switch) — blockiert</td></tr>
+          <tr><td><strong>Backup Port</strong></td><td>Backup zu einem Designated Port auf demselben Segment (nur bei Hubs / Shared Media) — blockiert</td></tr>
+        </table></div>
+        <div class="table-wrap"><table>
+          <tr><th>802.1D (STP)</th><th>802.1w (RSTP)</th><th>Forwarding?</th><th>Lernt MACs?</th></tr>
+          <tr><td>Disabled</td><td>Discarding</td><td>Nein</td><td>Nein</td></tr>
+          <tr><td>Blocking</td><td>Discarding</td><td>Nein</td><td>Nein</td></tr>
+          <tr><td>Listening</td><td>Discarding</td><td>Nein</td><td>Nein</td></tr>
+          <tr><td>Learning</td><td>Learning</td><td>Nein</td><td>Ja</td></tr>
+          <tr><td>Forwarding</td><td>Forwarding</td><td>Ja</td><td>Ja</td></tr>
+        </table></div>
+        <h4>Root-Bridge-Wahl und Tie-Breaker (Reihenfolge merken!)</h4>
+        <ol>
+          <li>Niedrigste <strong>Bridge-ID</strong> → Root Bridge</li>
+          <li>Niedrigste <strong>Root Path Cost</strong> → Root Port</li>
+          <li>Niedrigste <strong>Sender Bridge-ID</strong></li>
+          <li>Niedrigste <strong>Sender Port-ID</strong> (Priority + Portnummer)</li>
+        </ol>
+        <div class="table-wrap"><table>
+          <tr><th>Link-Speed</th><th>STP Cost (klassisch)</th></tr>
+          <tr><td>10 Mbit/s</td><td>100</td></tr>
+          <tr><td>100 Mbit/s</td><td>19</td></tr>
+          <tr><td>1 Gbit/s</td><td>4</td></tr>
+          <tr><td>10 Gbit/s</td><td>2</td></tr>
+        </table></div>
+      </div>
+
+      <div class="content-section">
+        <h3>🛡️ STP-Schutzmechanismen (Blueprint 2.5.d)</h3>
+        <div class="table-wrap"><table>
+          <tr><th>Feature</th><th>Wo?</th><th>Was passiert?</th><th>Schützt vor</th></tr>
+          <tr><td><strong>PortFast</strong></td><td>Access-Ports</td><td>Sofort Forwarding, kein Listening/Learning</td><td>Langsamer Konvergenz für Endgeräte</td></tr>
+          <tr><td><strong>BPDU Guard</strong></td><td>Access-Ports (mit PortFast)</td><td>Port wird <em>err-disabled</em>, sobald eine BPDU eintrifft</td><td>Unbefugt angeschlossenen Switches</td></tr>
+          <tr><td><strong>BPDU Filter</strong></td><td>Access-Ports</td><td>Sendet/empfängt keine BPDUs (Port ist „STP-blind“)</td><td>Unnötigen BPDUs zu Endgeräten — Vorsicht: Loop-Gefahr</td></tr>
+          <tr><td><strong>Root Guard</strong></td><td>Designated Ports Richtung Access-Layer</td><td>Empfängt Port eine <em>bessere</em> BPDU → Zustand „root-inconsistent“ (blockiert)</td><td>Fremdem Switch, der Root Bridge werden will</td></tr>
+          <tr><td><strong>Loop Guard</strong></td><td>Root-/Alternate-Ports</td><td>Bleiben BPDUs plötzlich aus → Port wird „loop-inconsistent“ statt Forwarding</td><td>Unidirektionalen Link-Fehlern (Loop-Bildung)</td></tr>
+        </table></div>
+        <pre><code><span class="cli-comment"># Root Guard auf einem Uplink zum Access-Switch</span>
+Switch(config-if)# spanning-tree guard root
+
+<span class="cli-comment"># Loop Guard (interface oder global)</span>
+Switch(config-if)# spanning-tree guard loop
+Switch(config)# spanning-tree loopguard default
+
+<span class="cli-comment"># BPDU Filter (Vorsicht!)</span>
+Switch(config-if)# spanning-tree bpdufilter enable
+
+<span class="cli-comment"># Verifikation</span>
+Switch# show spanning-tree inconsistentports
+Switch# show spanning-tree interface gi0/1 detail</code></pre>
+        <div class="callout callout-tip"><strong>Merkhilfe</strong>BPDU Guard = „Ich erwarte KEINE BPDUs“ (Endgeräte-Port). Root Guard = „Ich erwarte BPDUs, aber keine BESSEREN als meine“ (Richtung Downstream). Loop Guard = „Ich erwarte BPDUs — wenn sie ausbleiben, traue ich dem Link nicht“.</div>
+      </div>
     `
   },
   {
@@ -416,6 +500,30 @@ Router(config)# ip route 192.168.2.0 255.255.255.0 10.0.1.2 5
 Router# show ip route
 Router# show ip route static
 Router# ping 192.168.2.1</code></pre>
+      </div>
+
+      <div class="content-section">
+        <h3>🗂️ Routentypen (Blueprint 3.3)</h3>
+        <div class="table-wrap"><table>
+          <tr><th>Typ</th><th>Beispiel IPv4</th><th>Beispiel IPv6</th><th>Zweck</th></tr>
+          <tr><td><strong>Network Route</strong></td><td><code>ip route 10.1.0.0 255.255.0.0 10.0.0.2</code></td><td><code>ipv6 route 2001:DB8:1::/64 2001:DB8::2</code></td><td>Route zu einem (Teil-)Netz</td></tr>
+          <tr><td><strong>Host Route</strong></td><td><code>ip route 10.1.1.5 255.255.255.255 10.0.0.2</code></td><td><code>ipv6 route 2001:DB8:1::5/128 2001:DB8::2</code></td><td>Route zu genau einem Host (/32 bzw. /128)</td></tr>
+          <tr><td><strong>Default Route</strong></td><td><code>ip route 0.0.0.0 0.0.0.0 10.0.0.1</code></td><td><code>ipv6 route ::/0 2001:DB8::1</code></td><td>Gateway of Last Resort — alles, was sonst nicht passt</td></tr>
+          <tr><td><strong>Floating Static</strong></td><td><code>ip route 10.1.0.0 255.255.0.0 10.0.1.2 <strong>5</strong></code></td><td><code>ipv6 route 2001:DB8:1::/64 2001:DB8:F::2 <strong>5</strong></code></td><td>Backup-Route mit höherer AD, erscheint nur, wenn die primäre Route ausfällt</td></tr>
+        </table></div>
+        <h4>Next-Hop vs. Exit-Interface</h4>
+        <ul>
+          <li><strong>Next-Hop-IP:</strong> Router muss die Next-Hop-Adresse rekursiv auflösen (recursive lookup). Standard und sauber auf Multi-Access-Links (Ethernet).</li>
+          <li><strong>Exit-Interface:</strong> Direkt angeschlossen (AD 1, wird in der Tabelle wie „directly connected“ behandelt). Auf Ethernet problematisch → ARP für jedes Ziel. Gut für Point-to-Point (Serial).</li>
+          <li><strong>Fully specified:</strong> <code>ip route 10.1.0.0 255.255.0.0 gi0/0 10.0.0.2</code> — beides angegeben, kein rekursiver Lookup.</li>
+        </ul>
+        <pre><code><span class="cli-comment"># IPv6 statisches Routing</span>
+Router(config)# ipv6 unicast-routing
+Router(config)# ipv6 route 2001:DB8:2::/64 2001:DB8:12::2
+Router(config)# ipv6 route ::/0 gi0/0 FE80::2     <span class="cli-comment"># Link-Local als Next-Hop → Exit-Interface Pflicht!</span>
+Router# show ipv6 route
+Router# show ipv6 route static</code></pre>
+        <div class="callout callout-warn"><strong>Prüfungsfalle</strong>Wird ein <strong>Link-Local</strong> (FE80::) als IPv6-Next-Hop verwendet, MUSS das Exit-Interface mit angegeben werden, weil Link-Local-Adressen nicht eindeutig sind.</div>
       </div>
 
       <div class="content-section">
@@ -530,6 +638,9 @@ Router(config)# ip dhcp excluded-address 192.168.1.1 192.168.1.20
 
 <span class="cli-comment"># DHCP Relay (Helper-Address) — wenn Server in anderem Segment</span>
 Router(config-if)# ip helper-address 10.0.0.100
+
+<span class="cli-comment"># Router-Interface als DHCP-CLIENT (z.B. WAN-Port zum ISP)</span>
+Router(config-if)# ip address dhcp
 
 <span class="cli-comment"># Verifikation</span>
 Router# show ip dhcp binding
@@ -706,10 +817,10 @@ Switch# show port-security interface fa0/1</code></pre>
         <p>Traditionelles Netzwerk-Management (CLI, Box-by-Box) wird zunehmend durch Automatisierung ersetzt.</p>
         <div class="table-wrap"><table>
           <tr><th>Tool</th><th>Typ</th><th>Beschreibung</th></tr>
-          <tr><td>Ansible</td><td>Agentless</td><td>YAML-Playbooks, SSH-basiert, keine Agents nötig</td></tr>
-          <tr><td>Puppet</td><td>Agent-based</td><td>Manifest-Sprache, Master-Agent-Modell</td></tr>
-          <tr><td>Chef</td><td>Agent-based</td><td>Ruby-basiert, Cookbook/Recipe-Konzept</td></tr>
-          <tr><td>Python/NETCONF</td><td>Programmierbar</td><td>Direkte Konfiguration via API</td></tr>
+          <tr><td><strong>Ansible</strong></td><td>Agentless, Push, prozedural</td><td>YAML-Playbooks, SSH-basiert, keine Agents nötig — im Blueprint v1.1 (6.6)</td></tr>
+          <tr><td><strong>Terraform</strong></td><td>Agentless, deklarativ (IaC)</td><td>HCL-Konfiguration, plan → apply, State-File — im Blueprint v1.1 (6.6)</td></tr>
+          <tr><td>Puppet / Chef</td><td>Agent-based, Pull</td><td>Nur noch Hintergrundwissen — seit v1.1 nicht mehr explizit im Blueprint</td></tr>
+          <tr><td>Python + NETCONF/RESTCONF</td><td>Programmierbar</td><td>Direkte Konfiguration via API und YANG-Modelle</td></tr>
         </table></div>
       </div>
 
@@ -1237,3 +1348,29 @@ const FLASHCARDS = {
     { front: "Extended ACL Platzierung", back: "Nah an der Quelle" }
   ]
 };
+
+// ============ REGISTRY HELPER ============
+// Wird von den Erweiterungsdateien (js/topics/*.js) genutzt, um Themen an der
+// richtigen Stelle innerhalb ihrer Domäne einzufügen.
+function registerTopic(topic, opts) {
+  opts = opts || {};
+  if (TOPICS.some(t => t.id === topic.id)) return;
+  let idx = TOPICS.length;
+  if (opts.before) {
+    const i = TOPICS.findIndex(t => t.id === opts.before);
+    if (i >= 0) idx = i;
+  } else if (opts.after) {
+    const i = TOPICS.findIndex(t => t.id === opts.after);
+    if (i >= 0) idx = i + 1;
+  }
+  TOPICS.splice(idx, 0, topic);
+  if (opts.quiz) QUIZZES[topic.id] = opts.quiz;
+  if (opts.flashcards) FLASHCARDS[topic.id] = opts.flashcards;
+}
+
+// Ergänzt bestehende Themen um zusätzliche Quizfragen / Flashcards
+function extendTopic(id, opts) {
+  opts = opts || {};
+  if (opts.quiz) QUIZZES[id] = (QUIZZES[id] || []).concat(opts.quiz);
+  if (opts.flashcards) FLASHCARDS[id] = (FLASHCARDS[id] || []).concat(opts.flashcards);
+}
