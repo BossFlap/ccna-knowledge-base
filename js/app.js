@@ -8,7 +8,7 @@ const state = {
   flashcardIndex: 0,
   flashcardFlipped: false,
   flashcardOrder: null,
-  theme: localStorage.getItem('ccna-theme') || 'light',
+  theme: localStorage.getItem('ccna-theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   progress: JSON.parse(localStorage.getItem('ccna-progress') || '{}'),
   quizScores: JSON.parse(localStorage.getItem('ccna-scores') || '{}'),
   blueprint: JSON.parse(localStorage.getItem('ccna-blueprint') || '{}'),
@@ -58,6 +58,10 @@ function scrollTop() { const c = document.getElementById('content-area'); if (c)
 
 // ===== INIT =====
 function init() {
+  if (!localStorage.getItem('ccna-progress-v2')) {
+    // Bis v3 wurde ein Thema schon beim Öffnen als gelesen markiert — diese Markierungen sind unzuverlässig
+    state.progress = {}; save('ccna-progress', state.progress); localStorage.setItem('ccna-progress-v2', '1');
+  }
   applyTheme();
   renderSidebar();
   document.getElementById('sidebar-search').addEventListener('input', onSearch);
@@ -111,6 +115,7 @@ function toggleTheme() {
 // ===== SIDEBAR =====
 function renderSidebar() {
   const nav = document.getElementById('sidebar-nav');
+  const keepScroll = nav.scrollTop;
   const domains = domainsGrouped();
 
   const tools = `
@@ -145,6 +150,9 @@ function renderSidebar() {
       }).join('')}
     </div>`;
   }).join('');
+  nav.scrollTop = keepScroll;
+  const active = nav.querySelector('.nav-item.active');
+  if (active) { const r = active.getBoundingClientRect(), n = nav.getBoundingClientRect(); if (r.top < n.top || r.bottom > n.bottom) active.scrollIntoView({ block: 'nearest' }); }
   updateBottomNav();
 }
 
@@ -333,9 +341,6 @@ function renderTopic(id) {
   const topic = topicById(id);
   if (!topic) return;
 
-  if (!state.progress[id]) logActivity('topics');
-  state.progress[id] = true;
-  save('ccna-progress', state.progress);
   renderSidebar();
 
   setBreadcrumb([
@@ -365,6 +370,7 @@ function renderTopic(id) {
           <span class="tag">🎯 ${bp ? bp.weight + '%' : topic.domainPct} der Prüfung</span>
           ${topic.tags.map(tg => `<span class="tag">${tg}</span>`).join('')}
           ${score !== undefined ? `<span class="tag" style="background:var(--success-bg);color:var(--success)">Quiz: ${score}%</span>` : ''}
+          <span class="tag read-state" id="read-state">${readStateHtml(id)}</span>
         </div>
         ${bpItems.length ? `<div class="bp-refs">Blueprint: ${bpItems.map(i => `<span class="chip chip-link" title="${escapeAttr(i.text)}" onclick="navigateTool('guide');setTimeout(()=>scrollToBlueprint('${i.num}'),50)">${i.num} · ${VERB_LEVELS[i.verb].label}${i.isNew ? ' · NEU' : ''}</span>`).join('')}</div>` : ''}
       </div>
@@ -375,6 +381,7 @@ function renderTopic(id) {
       <div class="topic-actions">
         ${hasQuiz ? `<button class="btn-primary" onclick="startQuiz('${id}')">🎯 Quiz starten (${QUIZZES[id].length} Fragen)</button>` : ''}
         ${hasFlash ? `<button class="btn-secondary" onclick="startFlashcards('${id}')">🃏 Flashcards (${FLASHCARDS[id].length})</button>` : ''}
+        <button class="btn-secondary" id="mark-read-btn" onclick="toggleRead('${id}')">${state.progress[id] ? '↩ Als ungelesen markieren' : '✓ Als gelesen markieren'}</button>
         ${bpItems.length ? `<button class="btn-secondary" onclick="toggleBlueprintFromTopic('${id}')">${bpItems.every(i => state.blueprint[i.num]) ? '☑ Blueprint-Punkte als sicher markiert' : '☐ Blueprint-Punkte als sicher markieren'}</button>` : ''}
       </div>
       <div class="topic-nav">
@@ -385,6 +392,7 @@ function renderTopic(id) {
   `;
   enhanceTopicView(id);
   scrollTop();
+  startReadingTracker(id);
 }
 
 function toggleBlueprintFromTopic(topicId) {
@@ -570,6 +578,7 @@ function startFlashcards(topicId, fromRoute) {
   state.currentTopic = topicId;
   state.flashcardIndex = 0;
   state.flashcardFlipped = false;
+  state.flashcardDone = false;
   state.flashcardOrder = cards.map((_, i) => i);
   if (!fromRoute) setHash('flash/' + topicId);
 
@@ -585,6 +594,7 @@ function startFlashcards(topicId, fromRoute) {
 
 function renderFlashcard(topicId) {
   const cards = FLASHCARDS[topicId];
+  if (state.flashcardDone) return renderFlashcardsDone(topicId);
   const order = state.flashcardOrder || cards.map((_, i) => i);
   const card = cards[order[state.flashcardIndex]];
   const total = cards.length;
@@ -618,18 +628,42 @@ function renderFlashcard(topicId) {
   attachSwipe(document.querySelector('#flashcard-view .flashcard-container'), () => nextCard(topicId), () => prevCard(topicId));
 }
 
-function flipCard(topicId) { state.flashcardFlipped = !state.flashcardFlipped; renderFlashcard(topicId); }
+function flipCard(topicId) { if (state.flashcardDone) return; state.flashcardFlipped = !state.flashcardFlipped; renderFlashcard(topicId); }
+
+function renderFlashcardsDone(topicId) {
+  const t = topicById(topicId);
+  const cards = FLASHCARDS[topicId];
+  const idx = TOPICS.findIndex(x => x.id === topicId);
+  const next = TOPICS[idx + 1];
+  const known = cards.filter(c => { const e = LEARN.srs[cardKey(topicId, c)]; return e && e.box >= 1; }).length;
+  document.getElementById('content-area').innerHTML = `
+    <div id="flashcard-view" class="anim-in">
+      <div class="quiz-result">
+        <div class="result-score great">${cards.length}</div>
+        <div class="result-label">Karten durchgearbeitet 🎉</div>
+        <div class="result-sub">${t.icon} ${t.title} · ${known} von ${cards.length} Karten sitzen bereits (Box 1+). Die Karten sind jetzt in deiner täglichen Wiederholung.</div>
+        <div class="result-actions">
+          <button class="btn-secondary" onclick="shuffleCards('${topicId}')">🔀 Nochmal gemischt</button>
+          ${QUIZZES[topicId] ? `<button class="btn-primary" onclick="startQuiz('${topicId}')">🎯 Quiz zum Thema</button>` : ''}
+          ${next ? `<button class="btn-secondary" onclick="navigateTopic('${next.id}')">${next.icon} Nächstes Thema →</button>` : ''}
+          <button class="btn-secondary" onclick="navigateTool('review')">🔁 Wiederholen</button>
+        </div>
+      </div>
+    </div>`;
+  scrollTop();
+}
 function nextCard(topicId) {
   if (state.flashcardIndex >= FLASHCARDS[topicId].length - 1) return;
   state.flashcardIndex++; state.flashcardFlipped = false; renderFlashcard(topicId);
 }
 function prevCard(topicId) {
+  if (state.flashcardDone) { state.flashcardDone = false; renderFlashcard(topicId); return; }
   if (state.flashcardIndex <= 0) return;
   state.flashcardIndex--; state.flashcardFlipped = false; renderFlashcard(topicId);
 }
 function shuffleCards(topicId) {
   state.flashcardOrder = shuffle(FLASHCARDS[topicId].map((_, i) => i));
-  state.flashcardIndex = 0; state.flashcardFlipped = false; renderFlashcard(topicId);
+  state.flashcardIndex = 0; state.flashcardFlipped = false; state.flashcardDone = false; renderFlashcard(topicId);
 }
 
 // ===== KEYBOARD =====

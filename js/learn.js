@@ -116,7 +116,7 @@ function rateTopicCard(rating) {
   rateCard(topicId, card, rating);
   renderSidebar();
   if (state.flashcardIndex < cards.length - 1) { state.flashcardIndex++; state.flashcardFlipped = false; renderFlashcard(topicId); }
-  else { state.flashcardFlipped = false; renderFlashcard(topicId); }
+  else { state.flashcardFlipped = false; state.flashcardDone = true; renderFlashcard(topicId); }
 }
 
 // ---------- Wiederholungs-Session ----------
@@ -385,4 +385,81 @@ function attachSwipe(el, onLeft, onRight) {
     x0 = null;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (dx < 0) onLeft && onLeft(); else onRight && onRight(); }
   }, { passive: true });
+}
+
+// ---------- Lesestatus: erst nach Lesezeit + Scrollen ans Ende (oder manuell) ----------
+const READ = { id: null, start: 0, maxRatio: 0, required: 0, timer: null, est: 0 };
+
+function estimateReadingSeconds(topic) {
+  const d = document.createElement('div'); d.innerHTML = topic.content;
+  const words = (d.textContent || '').trim().split(/\s+/).length;
+  const tables = d.querySelectorAll('tr').length, code = d.querySelectorAll('pre').length;
+  return Math.round(words / 3.2 + tables * 3 + code * 12);          // ~190 Wörter/Min + Zeit für Tabellen/Code
+}
+function readStateHtml(id) {
+  if (state.progress[id]) return '✅ Gelesen';
+  const t = topicById(id);
+  const mins = Math.max(1, Math.round(estimateReadingSeconds(t) / 60));
+  return `📖 Lesezeit ca. ${mins} Min`;
+}
+function startReadingTracker(id) {
+  clearInterval(READ.timer);
+  const t = topicById(id);
+  READ.id = id; READ.start = Date.now(); READ.maxRatio = 0;
+  READ.est = estimateReadingSeconds(t);
+  READ.required = Math.min(150, Math.max(30, Math.round(READ.est * 0.35)));   // 30 s … 2,5 Min
+  updateReadProgress();
+  READ.timer = setInterval(() => {
+    if (state.currentView !== 'topic' || state.currentTopic !== READ.id) { clearInterval(READ.timer); setReadBar(0); return; }
+    maybeMarkRead();
+  }, 3000);
+}
+function onReadingScroll() {
+  if (state.currentView !== 'topic' || !READ.id) { setReadBar(0); return; }
+  updateReadProgress();
+  maybeMarkRead();
+}
+function updateReadProgress() {
+  const c = document.getElementById('content-area');
+  if (!c) return;
+  const ratio = c.scrollHeight <= c.clientHeight + 40 ? 1 : Math.min(1, (c.scrollTop + c.clientHeight) / c.scrollHeight);
+  READ.maxRatio = Math.max(READ.maxRatio, ratio);
+  setReadBar(state.progress[READ.id] ? 0 : ratio);
+}
+function setReadBar(ratio) { const b = document.querySelector('#read-progress > div'); if (b) b.style.width = Math.round(ratio * 100) + '%'; }
+function maybeMarkRead() {
+  if (!READ.id || state.progress[READ.id]) return;
+  const elapsed = (Date.now() - READ.start) / 1000;
+  if (elapsed >= READ.required && READ.maxRatio >= 0.85) markTopicRead(READ.id, true);
+}
+function markTopicRead(id, auto) {
+  if (state.progress[id]) return;
+  state.progress[id] = true; save('ccna-progress', state.progress);
+  logActivity('topics');
+  renderSidebar();
+  const rs = document.getElementById('read-state'); if (rs) rs.innerHTML = readStateHtml(id);
+  const btn = document.getElementById('mark-read-btn'); if (btn) btn.textContent = '↩ Als ungelesen markieren';
+  setReadBar(0);
+  showToast(auto ? '✅ Thema als gelesen markiert — du warst lange genug dran und bis unten.' : '✅ Thema als gelesen markiert.');
+}
+function toggleRead(id) {
+  if (state.progress[id]) {
+    delete state.progress[id]; save('ccna-progress', state.progress);
+    renderSidebar();
+    const rs = document.getElementById('read-state'); if (rs) rs.innerHTML = readStateHtml(id);
+    const btn = document.getElementById('mark-read-btn'); if (btn) btn.textContent = '✓ Als gelesen markieren';
+    READ.start = Date.now(); READ.maxRatio = 0; updateReadProgress();
+    showToast('↩ Als ungelesen markiert.');
+  } else markTopicRead(id, false);
+}
+
+// ---------- Toast ----------
+let _toastTimer = null;
+function showToast(msg) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
 }

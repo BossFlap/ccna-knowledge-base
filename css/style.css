@@ -1100,3 +1100,15 @@ body, #sidebar { height: 100dvh; }
 #bottom-nav button:focus { outline: none; background: none; }
 #bottom-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
 @media (min-width: 1100px) { .dash-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* Lesefortschritt, Lesestatus, Toast */
+#read-progress { height: 3px; background: transparent; flex-shrink: 0; }
+#read-progress > div { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+.tag.read-state { background: var(--bg); color: var(--text-muted); border: 1px dashed var(--border); }
+#toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+  background: #1e293b; color: #f8fafc; padding: 10px 18px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; z-index: 300; max-width: 90vw; text-align: center;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 768px) { #toast { bottom: 76px; } }

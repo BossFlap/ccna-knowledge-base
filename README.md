@@ -17,6 +17,7 @@ Eine komplette, offline nutzbare Lernplattform (reines HTML/CSS/JS, keine Abhän
 - **Fehler-Pool**: falsch beantwortete Quiz- und Simulationsfragen landen automatisch im Pool; „Meine Fehler üben“ fragt sie ab, bis sie zweimal in Folge richtig waren.
 - **Dashboard**: Prüfungsdatum mit Countdown und empfohlenem Tempo, Streak mit 14-Tage-Verlauf, Tagesziel (Karten, Fragen, Thema), „Weiter lernen“ zur letzten Position.
 - **Subnetting-Trainer**: zufällige Aufgaben (Netz bestimmen, Maske ↔ CIDR, Wildcard, gleiches Subnetz?, Subnetz planen) mit Timer, Lösungsweg in Binärdarstellung und Statistik.
+- **Lesestatus**: ein Thema gilt erst als gelesen, wenn man eine textlängenabhängige Mindestzeit (30 s bis 2,5 Min) darin verbracht und bis zum Ende gescrollt hat, oder es manuell abhakt. Lesezeit-Schätzung im Header, Fortschrittsbalken unter der Kopfzeile.
 - **Responsiv**: zentrierter Inhalt auf grossen Bildschirmen, untere Navigationsleiste und Wischgesten bei Flashcards auf dem Handy.
 - **Volltextsuche** über alle Inhalte (Theorie-Abschnitte, Befehle, Glossar, Blueprint, Flashcards, Quizfragen): Suchfeld in der Kopfzeile mit Live-Vorschlägen, `Strg+K` oder `/` von überall, Treffer werden im Thema hervorgehoben.
 - Inhaltsverzeichnis pro Thema, Kopier-Button auf jedem Code-Block, „Nach oben“-Button, Druckansicht.

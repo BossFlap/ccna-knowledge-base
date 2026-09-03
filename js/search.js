@@ -428,4 +428,5 @@ function onContentScroll() {
   const btn = document.getElementById('back-top');
   const c = document.getElementById('content-area');
   if (btn && c) btn.classList.toggle('show', c.scrollTop > 500);
+  if (typeof onReadingScroll === 'function') onReadingScroll();
 }

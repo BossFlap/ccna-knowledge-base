@@ -83,6 +83,7 @@ function genTask(mode) {
 function renderSubnet() {
   state.currentView = 'subnet';
   if (!SUBNET.task) newSubnetTask();
+  else if (!SUBNET.checked) SUBNET.start = Date.now();   // Timer neu starten, wenn man zurückkommt
   const s = SUBNET.stats;
   const acc = s.total ? Math.round((s.correct / s.total) * 100) : 0;
   const avg = s.total ? Math.round(s.timeSum / s.total) : 0;
